@@ -5,6 +5,16 @@ await new Promise(r=>server.listen(0,'127.0.0.1',r));
 const base=`http://127.0.0.1:${server.address().port}`;
 async function post(path,data,token){const r=await fetch(base+'/api/'+path,{method:'POST',headers:{'Content-Type':'application/json',...(token?{Authorization:'Bearer '+token}:{})},body:JSON.stringify(data)});return {status:r.status,body:await r.json()}}
 after(()=>{server.closeAllConnections();server.close()});
+test('chat synchronizes without interpreting HTML, bounds length, isolates rooms and limits spam',async()=>{
+ const a=(await post('join',{name:'Chat A'})).body;
+ const b=(await post('join',{name:'Chat B',room:a.room})).body;
+ assert.equal((await post('action',{type:'chat',text:'<img src=x onerror=alert(1)> 你好！'},a.token)).status,200);
+ const controller=new AbortController();const response=await fetch(base+'/api/events?token='+b.token,{signal:controller.signal});const reader=response.body.getReader();let text='';while(!text.includes('data: '))text+=new TextDecoder().decode((await reader.read()).value);const state=JSON.parse(text.split('data: ')[1].split('\n')[0]);controller.abort();
+ assert.equal(state.chat.at(-1).text,'<img src=x onerror=alert(1)> 你好！');assert.equal(state.chat.at(-1).playerId,a.id);
+ assert.equal((await post('action',{type:'chat',text:'too fast'},a.token)).status,429);
+ assert.equal((await post('action',{type:'chat',text:'x'.repeat(101)},b.token)).status,400);
+ await post('leave',{},a.token);await post('leave',{},b.token);
+});
 test('five seats, overflow routing, shared state, authorization and seat release',async()=>{
  const first=await post('join',{name:'A',avatar:'🦖'});assert.equal(first.status,200);const room=first.body.room;
  const players=[first.body];for(let i=0;i<4;i++){const p=await post('join',{name:'P'+i,room});assert.equal(p.status,200);players.push(p.body)}
