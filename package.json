@@ -1,2 +1,1 @@
-{"name":"cloud-bbq","version":"1.0.0","private":true,"type":"module","scripts":{"start":"node server.js","test":"node --test --test-isolation=none"},"engines":{"node":">=22"}}
-
+{"name":"cloud-bbq","version":"1.0.0","private":true,"type":"module","scripts":{"start":"node server.js","test":"node --test --test-isolation=none"},"engines":{"node":">=22"},"dependencies":{"three":"0.180.0"}}

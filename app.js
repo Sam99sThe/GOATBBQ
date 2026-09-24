@@ -1,6 +1,8 @@
-const $=s=>document.querySelector(s), avatars=['🦖','👽','🦆','🧑‍🚀','🐸','🗿'],names=['失業恐龍','路過外星人','下班鴨','宇宙烤手','躺平蛙','沉默石像'];
-const foods={corn:['🌽','玉米',14],beef:['🥩','牛肉',9],wing:['🍗','雞翅',18],mushroom:['🍄','杏鮑菇',12]};
-let avatar=avatars[0],me=null,state=null,events=null,selected=null,sound=false,audio,toastTimer;
+import {BBQScene} from './scene.js';
+const $=s=>document.querySelector(s), avatars=['🐘'],names=['大象 · 原地 Idle'];
+const foods={fish:['🐟','鮮魚',14],beef:['🥩','牛肉',9],wing:['🍗','雞腿',18],roast:['🐟','烤魚',12]};
+let avatar=avatars[0],me=null,state=null,events=null,selected=null,sound=false,audio,toastTimer,musicFrame;
+let bbq=null;
 let danmakuOn=true,chatReady=false,lastChatId='',lane=0;
 const seenChat=new Set();
 function fly(message){if(!danmakuOn||matchMedia('(prefers-reduced-motion: reduce)').matches)return;const area=$('#danmaku');if(area.children.length>=12)return;const el=document.createElement('span');el.className='danmaku-message'+(message.playerId===me?.id?' mine':'');el.textContent=message.avatar+' '+message.name+'：'+message.text;el.style.top=(lane++%5)*17+'%';el.style.setProperty('--travel',area.clientWidth+'px');area.append(el);el.addEventListener('animationend',()=>el.remove());setTimeout(()=>el.remove(),13000)}
@@ -14,18 +16,18 @@ async function action(data){if(!me){$('#joinDialog').showModal();return}try{awai
 function condition(f){return Math.max(...f.sides)>145?'burnt':Math.min(...f.sides)>=65?'ready':'raw'}
 function label(f){return {burnt:'炭化藝術',ready:'開吃！',raw:'還在烤'}[condition(f)]}
 function render(){
- renderChat();
+ renderChat(); bbq?.sync(state,me);
  $('#roomLabel').textContent=`炭火 ${state.id} 號桌 · ${state.players.length} / 5 人`;
- html('#seats',Array.from({length:5},(_,i)=>{const p=state.players.find(x=>x.seat===i);return p?`<div class="seat ${p.id===me?.id?'me':''}">${p.bubble?`<div class="bubble">${esc(p.bubble)}</div>`:''}<div class="avatar">${p.avatar}</div><div class="seat-name">${esc(p.name)}${p.id===me?.id?' · 你':''}</div><small>已吃 ${p.eaten} 口空氣</small></div>`:`<div class="seat empty"><div class="avatar">＋</div><div class="seat-name">留個位子</div><small>等一個餓的人</small></div>`}).join(''));
  html('#grill',Array.from({length:9},(_,i)=>{const f=state.food.find(x=>x.slot===i);return f?`<button class="food-slot ${condition(f)}" data-food-id="${f.id}" aria-label="${foods[f.kind][1]}，${label(f)}，點擊操作">${foods[f.kind][0]}<small>${label(f)}</small></button>`:'<div class="food-slot empty"></div>'}).join(''));
  $('#heat').textContent=`🔥 ${Math.round(state.heat*100)}%`;$('#event').textContent=state.event;$('#feed').innerHTML=state.log.map(l=>`<li>${esc(l.text)}</li>`).join('');
  if(selected){const f=state.food.find(f=>f.id===selected);if(f){$('#foodTitle').textContent=foods[f.kind][0]+' '+foods[f.kind][1];$('#foodState').textContent=`${f.owner} 放的 · ${label(f)}。A 面 ${Math.round(f.sides[0])}% / B 面 ${Math.round(f.sides[1])}%（目前烤 ${f.side===0?'A':'B'} 面）。兩面 65% 可吃，超過 145% 烤焦。`}else{$('#foodDialog').close();selected=null;toast('這口已經被吃掉了。')}}
 }
-$('#avatars').innerHTML=avatars.map((a,i)=>`<button type="button" data-avatar="${a}" aria-label="${names[i]}" aria-pressed="${i===0}">${a}</button>`).join('');
+$('#avatars').innerHTML=avatars.map((a,i)=>`<button type="button" data-avatar="${a}" aria-label="${names[i]}" aria-pressed="${i===0}">${a} <span>大象 · 原地 Idle</span></button>`).join('');
 $('#avatars').onclick=e=>{const b=e.target.closest('button');if(!b)return;avatar=b.dataset.avatar;$('#avatars').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b))};
 $('#menu').innerHTML=Object.entries(foods).map(([k,[emoji,name,sec]])=>`<button data-add="${k}"><b>${emoji}</b><span>${name}<small>每面約 ${sec} 秒</small></span></button>`).join('');
 $('#menu').onclick=e=>{const b=e.target.closest('[data-add]');if(b)action({type:'add',food:b.dataset.add})};
 document.querySelectorAll('[data-action]').forEach(b=>b.onclick=()=>action({type:b.dataset.action}));
+document.querySelectorAll('[data-motion]').forEach(b=>b.onclick=()=>action({type:'motion',motion:b.dataset.motion}));
 $('#say').onchange=e=>{if(e.target.value!=='')action({type:'say',index:Number(e.target.value)});e.target.value=''};
 $('#grill').onclick=e=>{const b=e.target.closest('[data-food-id]');if(b){selected=b.dataset.foodId;render();$('#foodDialog').showModal()}};
 $('#flip').onclick=()=>action({type:'flip',id:selected});$('#eat').onclick=()=>{action({type:'eat',id:selected});selected=null;$('#foodDialog').close()};$('#closeFood').onclick=()=>{selected=null;$('#foodDialog').close()};$('#foodDialog').onclose=()=>{selected=null};
@@ -38,5 +40,13 @@ $('#leave').onclick=async()=>{try{await api('leave',{});sessionStorage.removeIte
 function connect(){events?.close();chatReady=false;events=new EventSource('/api/events?token='+encodeURIComponent(me.token));events.onmessage=e=>{state=JSON.parse(e.data);$('#connection').textContent='● 炭火連線中';render()};events.onerror=()=>{$('#connection').textContent='正在重新生火…';if(events.readyState===EventSource.CLOSED){events.close();sessionStorage.removeItem('bbq');me=null;$('#joinError').textContent='座位已釋出，請重新入座。';$('#joinDialog').showModal()}}}
 $('#joinForm').onsubmit=async e=>{e.preventDefault();const b=e.submitter;b.disabled=true;$('#joinError').textContent='';try{let token;try{token=JSON.parse(sessionStorage.getItem('bbq'))?.token}catch{}me=await api('join',{name:$('#name').value,avatar,room:new URLSearchParams(location.search).get('room'),token});sessionStorage.setItem('bbq',JSON.stringify(me));history.replaceState({},'', '?room='+me.room);$('#joinDialog').close();$('#invite').hidden=false;$('#leave').hidden=false;connect()}catch(e){$('#joinError').textContent=e.message;$('#newRoom').hidden=false}finally{b.disabled=false}};
 $('#joinDialog').addEventListener('cancel',e=>{if(!me)e.preventDefault()});
-state={players:[],food:[],log:[],heat:1,event:'☾ 今晚的熱量，只存在於想像。'};render();$('#roomLabel').textContent='今晚，誰來顧火？';$('#joinDialog').showModal();
+try{
+ bbq=new BBQScene({container:$('#scene3d'),labels:$('#playerLabels'),onFood:id=>{selected=id;render();$('#foodDialog').showModal()},status:(message,error=false)=>{$('#sceneStatus').textContent=message;$('#sceneLoading').classList.toggle('error',error);$('#sceneLoading').classList.toggle('ready',!!bbq?.ready&&!error)}});
+ bbq.load().catch(error=>{console.error(error);$('#sceneStatus').textContent='3D 模型載入失敗，請重新整理。'+error.message;$('#sceneLoading').classList.add('error')});
+}catch(error){$('#sceneStatus').textContent='此瀏覽器無法啟動 3D，請使用支援 WebGL 2 的瀏覽器。';$('#sceneLoading').classList.add('error');console.error(error)}
+$('#resetView').onclick=()=>bbq?.resetCamera();$('#grillView').onclick=()=>bbq?.focusGrill();
+async function showCredits(){const dialog=$('#creditsDialog');dialog.showModal();if($('#creditsList').childElementCount)return;try{const records=await fetch('/credits.json').then(r=>r.json());$('#creditsList').innerHTML=records.map(r=>`<article class="credit"><a href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">${esc(r.title)} ↗</a><strong>${esc(r.author)}</strong><a class="license" href="${esc(r.licenseUrl)}" target="_blank" rel="noopener noreferrer">${esc(r.license)}</a><p>${esc(r.changes)}</p><small>${esc(r.file)}</small></article>`).join('')}catch{$('#creditsList').textContent='Credits 載入失敗，請重新整理重試。'}}
+$('#creditsButton').onclick=showCredits;$('#footerCredits').onclick=showCredits;$('#closeCredits').onclick=()=>$('#creditsDialog').close();
+state={players:[],food:[],log:[],chat:[],heat:1,event:'☾ 今晚的熱量，只存在於想像。'};render();$('#roomLabel').textContent='今晚，誰來顧火？';$('#joinDialog').showModal();
+
 

@@ -1,0 +1,8 @@
+node_modules/
+assets/avatars/*.zip
+assets/models/*/source/
+assets/models/elephant/idle/
+assets/models/elephant/model/
+assets/models/outdoor/model/*.obj
+assets/models/outdoor/model/*.mtl
+*.log

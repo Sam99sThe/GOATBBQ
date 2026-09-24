@@ -1,0 +1,68 @@
+import * as THREE from 'three';
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+import {clone as cloneSkeleton} from 'three/addons/utils/SkeletonUtils.js';
+import {inPlaceClip,animateElephant} from './elephant-motion.js';
+import {addNightScenery} from './night-scene.js';
+
+const ROOT='/assets/models/';
+const seatColors=[0xffc778,0x96d2b3,0x94baf4,0xeeb1cb,0xd4b2ff];
+const foodModels={fish:'fresh_fish',beef:'meat',wing:'ham',roast:'fried_fish'};
+const parkMaps={Old_Post:'BBQ Post.png',Sidewalk:'BBQ Sidewalk.png',Ground_Area:'BBQ Terrain.png',Main_Metals:'BBQ Main.png',Plastic_Red_Part:'BBQ Red Plastic.png',Charcoal_Brick:'BBQ Briquette.png',Charcoal_Brick_HOT:'BBQ Briquette.png',Ash_Pile:'BBQ Ash.png',Dandelion:'BBQ Dandelion.png',Dry_Grass:'BBQ Grass.png',Spray_Paint_3:'BBQ 3.png',Kerosene:'BBQ Kerosene.png',Butterfly:'BBQ Monarch.png'};
+const foodMaps={fresh_fish:'fresh_fish_Base_Color.png',fried_fish:'fried_fish_Base_Color.png',ham:'ham_low_ham_AlbedoTransparency.png',fried_ham:'ham_low_ham_AlbedoTransparency.png',meat:'meat_AlbedoTransparency.png',fried_meat:'Myaso_low_Myaso_AlbedoTransparency.png'};
+
+export class BBQScene {
+ constructor({container,labels,onFood,status}){
+  this.container=container;this.labels=labels;this.onFood=onFood;this.status=status;this.players=new Map();this.food=new Map();this.textures=new Map();this.lastState={players:[],food:[],heat:1};this.ready=false;this.me=null;this.disposed=false;
+  this.renderer=new THREE.WebGLRenderer({antialias:true,alpha:false,powerPreference:'high-performance'});
+  this.renderer.setPixelRatio(Math.min(devicePixelRatio,1.7));this.renderer.shadowMap.enabled=true;this.renderer.shadowMap.type=THREE.PCFSoftShadowMap;this.renderer.outputColorSpace=THREE.SRGBColorSpace;this.renderer.toneMapping=THREE.ACESFilmicToneMapping;this.renderer.toneMappingExposure=1.1;
+  this.renderer.domElement.setAttribute('aria-label','3D 烤肉場景，可拖曳旋轉、滾輪縮放，點擊食物操作');this.renderer.domElement.tabIndex=0;container.append(this.renderer.domElement);
+  this.scene=new THREE.Scene();this.scene.background=new THREE.Color('#081529');this.scene.fog=new THREE.Fog('#0b1c2d',24,78);
+  this.camera=new THREE.PerspectiveCamera(40,1,.1,130);this.camera.position.set(12,12,18);
+  this.controls=new OrbitControls(this.camera,this.renderer.domElement);this.controls.target.set(0,1.1,0);this.controls.enableDamping=true;this.controls.dampingFactor=.07;this.controls.minDistance=6;this.controls.maxDistance=32;this.controls.minPolarAngle=.18;this.controls.maxPolarAngle=Math.PI*.46;this.controls.enablePan=false;this.controls.update();
+  this.scene.add(new THREE.HemisphereLight(0x9bbde8,0x263429,1.05));
+  const sun=new THREE.DirectionalLight(0xb3d3ff,1.45);sun.position.set(-9,18,10);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);Object.assign(sun.shadow.camera,{left:-14,right:14,top:14,bottom:-14,near:1,far:50});sun.shadow.bias=-.0004;sun.shadow.normalBias=.025;this.scene.add(sun);
+  const fill=new THREE.DirectionalLight(0x9cbbef,.65);fill.position.set(8,7,-5);this.scene.add(fill);
+  this.nightScenery=addNightScenery(this.scene);
+  const floor=new THREE.Mesh(new THREE.PlaneGeometry(180,180),new THREE.MeshStandardMaterial({color:0x7d916c,roughness:1}));floor.rotation.x=-Math.PI/2;floor.position.y=-.03;floor.receiveShadow=true;this.scene.add(floor);
+  const patio=new THREE.Mesh(new THREE.CylinderGeometry(7.7,7.7,.12,80),new THREE.MeshStandardMaterial({color:0xb9b098,roughness:.96}));patio.position.y=-.04;patio.receiveShadow=true;this.scene.add(patio);
+  this.seats=[];
+  for(let i=0;i<5;i++){const angle=Math.PI+i*2*Math.PI/5;const point=new THREE.Vector3(Math.sin(angle)*4.9,0,Math.cos(angle)*4.9);const marker=new THREE.Mesh(new THREE.RingGeometry(1.32,1.37,64),new THREE.MeshBasicMaterial({color:seatColors[i],transparent:true,opacity:.7,side:THREE.DoubleSide}));marker.rotation.x=-Math.PI/2;marker.position.copy(point);marker.position.y=.035;this.scene.add(marker);this.seats.push({point,marker,angle})}
+  this.fire=new THREE.PointLight(0xff782b,13,7,2);this.fire.position.set(0,2.15,-.1);this.scene.add(this.fire);
+  this.ray=new THREE.Raycaster();this.pointer=new THREE.Vector2();let down;
+  this.renderer.domElement.addEventListener('pointerdown',e=>{down=[e.clientX,e.clientY]});
+  this.renderer.domElement.addEventListener('pointerup',e=>{if(!down||Math.hypot(e.clientX-down[0],e.clientY-down[1])>6)return;this.pick(e)});
+  this.renderer.domElement.addEventListener('webglcontextlost',e=>{e.preventDefault();status('顯示器暫停了，請重新整理恢復 3D 場景。',true)});
+  this.observer=new ResizeObserver(()=>this.resize());this.observer.observe(container);this.resize();
+  this.clock=new THREE.Clock();this.frame=()=>{if(this.disposed)return;this.animation=requestAnimationFrame(this.frame);if(document.hidden){this.clock.getDelta();return}const dt=Math.min(this.clock.getDelta(),.05);for(const p of this.players.values())animateElephant(p,dt);if(this.preview)animateElephant(this.preview,dt);this.controls.update();this.positionLabels();this.fire.intensity=12+(this.lastState.heat||1)*2+Math.sin(performance.now()*.006);this.renderer.render(this.scene,this.camera)};this.frame();
+ }
+ resize(){const {width,height}=this.container.getBoundingClientRect();if(!width||!height)return;this.renderer.setSize(width,height,false);this.camera.aspect=width/height;this.camera.updateProjectionMatrix()}
+ texture(path,color=true){if(!this.textures.has(path)){const t=new THREE.TextureLoader().load(ROOT+path,undefined,undefined,()=>this.status('有一張模型貼圖載入失敗，請重新整理重試。',true));t.colorSpace=color?THREE.SRGBColorSpace:THREE.NoColorSpace;t.flipY=false;t.anisotropy=Math.min(4,this.renderer.capabilities.getMaxAnisotropy());this.textures.set(path,t)}return this.textures.get(path)}
+ async load(){
+  const loader=new GLTFLoader();this.status('正在搬來大象、烤爐與食材…');
+  const [elephant,park,food]=await Promise.all(['elephant','park','food'].map(n=>loader.loadAsync(ROOT+'ready/'+n+'.glb')));
+  this.elephant=elephant;const eb=new THREE.Box3().setFromObject(elephant.scene);this.elephantScale=2.65/(eb.max.y-eb.min.y);this.elephantOffset=new THREE.Vector3(-(eb.min.x+eb.max.x)/2,-eb.min.y,-(eb.min.z+eb.max.z)/2);
+  elephant.scene.traverse(n=>{if(!n.isMesh)return;n.castShadow=true;n.receiveShadow=true;n.material=new THREE.MeshStandardMaterial({map:this.texture('elephant/textures/Elephant Base.png'),normalMap:this.texture('elephant/textures/Elephant Normal.png',false),roughness:.88,side:THREE.DoubleSide});n.material.normalScale.set(.55,.55)});
+  park.scene.traverse(n=>{if(!n.isMesh)return;n.castShadow=true;n.receiveShadow=true;for(const m of Array.isArray(n.material)?n.material:[n.material]){if(parkMaps[m.name])m.map=this.texture('park/textures/'+parkMaps[m.name]);m.roughness=.9;if(['Dry_Grass','Dandelion','Butterfly'].includes(m.name)){m.alphaTest=.4;m.side=THREE.DoubleSide}if(m.name==='Charcoal_Brick_HOT'){m.emissive=new THREE.Color(0xff5e12);m.emissiveMap=this.texture('park/textures/BBQ Briquette EM.png');m.emissiveIntensity=1.5}m.needsUpdate=true}});
+  park.scene.scale.set(.52,.28,.52);this.scene.add(park.scene);this.grill=park.scene;
+  this.foodTemplates={};food.scene.updateMatrixWorld(true);food.scene.traverse(n=>{if(!n.isMesh)return;const geometry=n.geometry.clone().applyMatrix4(n.matrixWorld);geometry.computeBoundingBox();const box=geometry.boundingBox;const size=box.getSize(new THREE.Vector3());geometry.translate(-(box.min.x+box.max.x)/2,-box.min.y,-(box.min.z+box.max.z)/2);geometry.scale(1/Math.max(size.x,size.z),1/Math.max(size.x,size.z),1/Math.max(size.x,size.z));const mat=new THREE.MeshStandardMaterial({map:this.texture('food/textures/'+foodMaps[n.name]),roughness:.75,side:THREE.DoubleSide});this.foodTemplates[n.name]={geometry,material:mat}});
+  this.ready=true;this.sync(this.lastState,this.me);if(!this.me&&!this.lastState.players.length)this.showPreview();this.status('大象已到位 · 拖曳轉視角，滾輪靠近');
+  this.loadOutdoor(loader).catch(error=>{console.error(error);this.status('大象與烤爐可使用；戶外廚房載入失敗，請重新整理。',true)});
+ }
+ async loadOutdoor(loader){const gltf=await loader.loadAsync(ROOT+'ready/outdoor.glb');const obj=gltf.scene;obj.traverse(n=>{if(n.isMesh){n.material=new THREE.MeshStandardMaterial({map:this.texture('outdoor/model/Sauna_5M_fixed_tex.jpg'),roughness:1,side:THREE.DoubleSide});n.receiveShadow=true;n.castShadow=false}});const box=new THREE.Box3().setFromObject(obj),center=box.getCenter(new THREE.Vector3());obj.position.set(-center.x,-box.min.y-.025,-center.z-15);this.scene.add(obj);this.outdoor=obj;this.status('3D 場景就緒 · 拖曳旋轉 / 滾輪縮放')}
+ makeElephant(seat){const model=cloneSkeleton(this.elephant.scene);const scale=new THREE.Group();scale.scale.setScalar(this.elephantScale);model.position.copy(this.elephantOffset);scale.add(model);const root=new THREE.Group();root.add(scale);root.position.copy(this.seats[seat].point);const toCenter=root.position.clone().negate();root.rotation.y=Math.atan2(-toCenter.z,toCenter.x);this.scene.add(root);const mixer=new THREE.AnimationMixer(model);if(this.elephant.animations[0]){const action=mixer.clipAction(inPlaceClip(this.elephant.animations[0]));action.play();action.time=seat*1.23}return {root,mixer,model,seat}}
+ showPreview(){if(this.preview||!this.ready)return;this.preview=this.makeElephant(0)}
+ clearPreview(){if(this.preview){this.preview.mixer.stopAllAction();this.preview.root.removeFromParent();this.preview=null}}
+ sync(state,me){this.lastState=state;this.me=me;if(!this.ready)return;if(me||state.players.length)this.clearPreview();const ids=new Set(state.players.map(p=>p.id));for(const [id,entry] of this.players){if(!ids.has(id)){entry.mixer.stopAllAction();entry.root.removeFromParent();entry.label.remove();this.players.delete(id)}}
+  for(const p of state.players){let entry=this.players.get(p.id);if(!entry){entry=this.makeElephant(p.seat);const label=document.createElement('div');label.className='elephant-label';label.innerHTML='<div class="elephant-bubble" hidden></div><span class="elephant-name"></span>';this.labels.append(label);entry.label=label;this.players.set(p.id,entry)}if(p.motion&&p.motion.id!==entry.motionId){entry.motionId=p.motion.id;entry.motion={kind:p.motion.kind,elapsed:Math.max(0,((state.now||Date.now())-p.motion.started)/1000)}}entry.label.classList.toggle('mine',p.id===me?.id);entry.label.querySelector('.elephant-name').textContent=p.name+(p.id===me?.id?' · 你':'');const bubble=entry.label.querySelector('.elephant-bubble');bubble.textContent=p.bubble||'';bubble.hidden=!p.bubble}
+  this.seats.forEach((s,i)=>s.marker.material.opacity=state.players.some(p=>p.seat===i)?.8:.27);
+  const foodIds=new Set(state.food.map(f=>f.id));for(const [id,mesh] of this.food)if(!foodIds.has(id)){mesh.removeFromParent();mesh.material.dispose();this.food.delete(id)}
+  for(const f of state.food){let mesh=this.food.get(f.id);if(!mesh){const template=this.foodTemplates[foodModels[f.kind]];if(!template)continue;mesh=new THREE.Mesh(template.geometry,template.material.clone());mesh.scale.setScalar(.53);mesh.position.set((f.slot%3-1)*.67,2.43,(Math.floor(f.slot/3)-1)*.48-.12);mesh.castShadow=true;mesh.receiveShadow=true;mesh.userData.foodId=f.id;this.scene.add(mesh);this.food.set(f.id,mesh)}const burnt=Math.max(...f.sides)>145,ready=Math.min(...f.sides)>=65;mesh.material.color.set(burnt?0x33251b:ready?0xdab688:0xffffff);mesh.rotation.z=f.side?Math.PI:0;mesh.position.y=f.side?2.53:2.43}
+ }
+ positionLabels(){const w=this.container.clientWidth,h=this.container.clientHeight;for(const entry of this.players.values()){const head=new THREE.Vector3(.7,2.95,0).applyMatrix4(entry.root.matrixWorld);head.project(this.camera);const visible=head.z>-1&&head.z<1&&Math.abs(head.x)<1.12&&Math.abs(head.y)<1.2;entry.label.hidden=!visible;entry.label.style.left=(head.x*.5+.5)*w+'px';entry.label.style.top=(-head.y*.5+.5)*h+'px'}}
+ pick(event){if(!this.ready)return;const rect=this.renderer.domElement.getBoundingClientRect();this.pointer.set((event.clientX-rect.left)/rect.width*2-1,-(event.clientY-rect.top)/rect.height*2+1);this.ray.setFromCamera(this.pointer,this.camera);const hits=this.ray.intersectObjects([...this.food.values()]);if(hits[0])this.onFood(hits[0].object.userData.foodId)}
+ resetCamera(){this.controls.target.set(0,1.1,0);this.camera.position.set(12,12,18);this.controls.update()}
+ focusGrill(){this.controls.target.set(0,2,0);this.camera.position.set(3.2,5.8,4.4);this.controls.update()}
+ dispose(){this.disposed=true;cancelAnimationFrame(this.animation);this.observer.disconnect();this.controls.dispose();this.renderer.dispose()}
+}
+

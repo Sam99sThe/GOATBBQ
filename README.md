@@ -1,47 +1,35 @@
-# G.O.A.T 家烤肉
+# G.O.A.T 家烤肉 — 3D 大象烤肉俱樂部
 
-真正共用房間的五人線上烤肉遊戲。Node.js 22+，無外部套件。
+## 本機運行
 
-## 本機啟動
+需要 Node.js 22+。第一次執行 `npm ci`，之後執行 `npm start`，瀏覽 http://localhost:3000。
 
-```sh
-npm ci
-npm start
-```
+目前為本機開發版。所有 3D 修改尚未上傳 GitHub，也沒有部署 Render；必須等使用者確認全部調整完成後再上傳與部署。
 
-開啟 http://localhost:3000。輸入名字、選人物即可自動配桌。用右上方邀請連結讓朋友加入同桌。
+## 已整合
 
-## Render
+- Three.js 真正 3D 場景：可拖曳旋轉、滾輪縮放、全景／烤網視角。
+- 每人一隻完整大象，五個固定位置、原本約 8.97 秒的 Idle 骨架動畫，沒有行走。
+- Park BBQ Grill 烤爐、Outdoor kitchen and grill 戶外環境，保留原始貼圖。
+- ToxaGrom 食物包：暫用鮮魚、牛肉、雞腿、烤魚；點右上食物上架，點 3D 食物翻面／吃掉，也可從烤網清單以鍵盤操作。
+- 伺服器維持五人上限、同步食物、翻面、熟度、烤焦與搶食。每面 65% 可吃，145% 烤焦。
+- 右下聊天室保留最近 50 則；新訊息同步成半透明頭頂泡泡與彈幕。泡泡跟隨 3D 大象投影位置，6 秒後消失。彈幕可關閉。
+- Credits 按鈕列出四組模型的正確作者、原始頁面、CC BY 4.0 連結及修改說明。詳見 ATTRIBUTION.md / credits.json。
 
-把此資料夾所有檔案放到 GitHub repository 根目錄，在 Render 的「G.O.A.T 家烤肉」專案建立 **Web Service**（不是 Static Site）。
+## 模型位置
 
-- Runtime: Node
-- Build command: `npm ci`
-- Start command: `npm start`
-- Health check: `/health`
-- Instance: Free
-- 單一執行個體；不要開多副本。也可使用隨附的 `render.yaml` 建立 Blueprint。
+使用者原始 ZIP：assets/avatars/（不會由網站公開提供，也不會被自動加入 Git）。
+網頁轉檔：assets/models/ready/*.glb。
+原始贴圖：assets/models/elephant/textures、park/textures、food/textures，以及 outdoor/model/Sauna_5M_fixed_tex.jpg。
 
-## 玩法
+Elephant Idle.fbx 的作者為 GremorySaiyan。Source 截圖裡 Cesar Salcedo CG 的大象是另一款模型；此版本不使用它。meat-collections.zip 未整合。
 
-- 每桌最多五位，滿桌時首頁訪客自動分到下一桌；邀請網址不會把你送到其他桌。
-- 食物選單包含玉米、牛肉、雞翅、杏鮑菇，最多同時烤九份。
-- 點烤網上的食物翻面或吃掉。兩面熟度達 65% 即可吃；任一面超過 145% 烤焦。
-- 誰都能翻面、偷吃；搧風會暫時加速烤熟；刷醬、預設台詞和每 30 秒的荒謬事件全桌同步。
-- 提供音效開關、鍵盤操作、手機版布局。
-- 全房同步自由聊天，每則最多 100 字；聊天室保留最新 50 則，訊息也會化成角色泡泡和彈幕，可隨時關閉彈幕。每人聊天間隔至少 1.2 秒。
-- 夜間營地背景為本專案生成的插畫。
-
-## 狀態與限制
-
-房間與食物保存在伺服器記憶體，重啟、重新部署或 Render 免費服務休眠後會清空。離線保留座位 45 秒；明確離席立即釋出。重新整理後再次入座會在保留期間取回原座位。無帳號、無永久紀錄。Render 免費服務可能需要冷啟動時間。
-
-伺服器以 SSE 每秒同步狀態，操作以帶隨機 session token 的 HTTP POST 驗證，房間人數及食物熟度由伺服器管理。不要把 SSE 網址中的 session token 分享給他人；邀請按鈕只複製 room 代碼。
+戶外廚房是高面數攝影測量模型，轉檔後約 48 MB；目前先保留原形進行本機場景驗收，部署前可再依視覺確認做壓縮。
 
 ## 驗證
 
-```sh
-npm test
-```
+`npm test`：五人上限、溢出分桌、共用食物、授權、座位釋出、聊天同步、字數／頻率限制、3D 資產路由與 Credits。
 
-整合測試涵蓋五人上限、溢出分桌、多人共用食物、未授權操作、座位釋出和 session token 不外洩於房間狀態。
+## 執行與部署限制
+
+單一 Node.js 執行個體，房間保存在記憶體。離線保留座位 45 秒，重啟後房間清空。Render 免費服務可能休眠；啟動指令 `npm start`，安裝指令 `npm ci`，健康檢查 `/health`。render.yaml 只保留設定，不會自行部署。

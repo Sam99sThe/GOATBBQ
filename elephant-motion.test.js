@@ -1,0 +1,8 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import * as THREE from 'three';
+import {readFileSync} from 'node:fs';
+import {inPlaceClip,motionOffsets,animateElephant,MOTION_SECONDS} from './elephant-motion.js';
+test('uploaded elephant has only the original Idle clip',()=>{const b=readFileSync(new URL('./assets/models/ready/elephant.glb',import.meta.url));const j=JSON.parse(b.toString('utf8',20,20+b.readUInt32LE(12)));assert.equal(j.animations.length,1);assert.equal(j.animations[0].name,'CINEMA_4D_Principal')});
+test('in-place animation freezes root translation without changing source clip',()=>{const source=new THREE.AnimationClip('Idle',1,[new THREE.VectorKeyframeTrack('Bip01.position',[0,1],[1,2,3,5,6,7])]);const clip=inPlaceClip(source);assert.deepEqual([...clip.tracks[0].values],[1,2,3,1,2,3]);assert.deepEqual([...source.tracks[0].values],[1,2,3,5,6,7])});
+test('gestures only rotate head, ears and trunk and leave the seat fixed',()=>{for(const kind of ['greet','ears','nod']){const root=new THREE.Group();root.position.set(4,0,3);const model=new THREE.Group();for(const [name] of motionOffsets(kind,1)){const bone=new THREE.Bone();bone.name=name;model.add(bone)}root.add(model);const entry={root,model,motion:{kind,elapsed:.9},poseBase:[]};animateElephant(entry,.1);assert.deepEqual(root.position.toArray(),[4,0,3]);assert.ok(model.children.some(b=>b.quaternion.angleTo(new THREE.Quaternion())>.001));animateElephant(entry,MOTION_SECONDS);assert.equal(entry.motion,null);assert.ok(model.children.every(b=>b.quaternion.angleTo(new THREE.Quaternion())<.000001));assert.deepEqual(motionOffsets(kind,MOTION_SECONDS),[])}});
