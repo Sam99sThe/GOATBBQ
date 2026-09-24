@@ -6,3 +6,7 @@ assets/models/elephant/model/
 assets/models/outdoor/model/*.obj
 assets/models/outdoor/model/*.mtl
 *.log
+data/
+.env
+.env.*
+assets/avatars/*.glb

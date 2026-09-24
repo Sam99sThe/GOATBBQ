@@ -1,0 +1,3 @@
+export function capacityConfig(env=process.env){const n=(key,fallback,max)=>{const v=Number(env[key]);return Number.isInteger(v)&&v>0?Math.min(v,max):fallback};return {players:n('BBQ_MAX_PLAYERS',45,120),rooms:n('BBQ_MAX_ROOMS',6,20),transfers:n('BBQ_MAX_TRANSFERS',16,32)}};
+export function bucket(rate,burst){let left=burst,last=Date.now();return (now=Date.now())=>{left=Math.min(burst,left+(now-last)*rate/1000);last=now;if(left<1)return false;left--;return true;};}
+export function safeSend(stream,text){if(!stream||stream.destroyed||stream.writableEnded)return false;if(stream.writableLength>256*1024){stream.destroy();return false;}try{return stream.write(text)}catch{stream.destroy();return false}}

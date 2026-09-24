@@ -42,6 +42,24 @@
     "license": "CC BY 4.0",
     "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
     "file": "assets/models/ready/scooter.glb",
-    "changes": "調整比例與朝向，加入飲料合併配送路徑動畫。"
+    "changes": "調整比例與朝向，加入飲料合併配送路徑動畫。 原作者頁面另署名 sreeranj@2025，保留該署名。"
+  },
+  {
+    "title": "Soft Drink",
+    "author": "Xander Morningstar (@XMorningstar)",
+    "url": "https://sketchfab.com/3d-models/soft-drink-ca977431f13049fb9a2ac6dce431d7ac",
+    "license": "CC BY 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+    "file": "soft_drink.glb → assets/models/ready/softdrink.glb",
+    "changes": "調整比例與位置，作為大象飲料杯，保留原始模型與材質。"
+  },
+  {
+    "title": "Bot riding a roller coaster — track only",
+    "author": "OuterspaceSoftware",
+    "url": "https://sketchfab.com/3d-models/bot-riding-a-roller-coaster-f79a676358ed4005a3e7ecfadee9352d",
+    "license": "CC BY-NC 4.0；另依作者移除 bot 後可商用之許可",
+    "licenseUrl": "https://creativecommons.org/licenses/by-nc/4.0/",
+    "file": "RollerCoaster.glb → assets/models/ready/coaster.glb",
+    "changes": "不包含 bot（機器人）：已排除機器人網格、材質與貼圖，重新輸出軌道與路線動畫；更換軌道材質、合併支架繪製、調整大小。乘客改為 GremorySaiyan 的 Idle 大象。作者原頁面明示移除 bot 後可用於商業專案。"
   }
 ]

@@ -1,6 +1,7 @@
 import {test,after} from 'node:test';
 import assert from 'node:assert/strict';
-import {server} from './server.js';
+process.env.BBQ_DB_PATH=':memory:';
+const {server}=await import('./server.js');
 await new Promise(r=>server.listen(0,'127.0.0.1',r));
 const base=`http://127.0.0.1:${server.address().port}`;
 async function post(path,data,token){const r=await fetch(base+'/api/'+path,{method:'POST',headers:{'Content-Type':'application/json',...(token?{Authorization:'Bearer '+token}:{})},body:JSON.stringify(data)});return {status:r.status,body:await r.json()}}
@@ -13,7 +14,7 @@ test('3D page import map, local module assets, model types and credits are serve
  const page=await fetch(base+'/');const body=await page.text();assert.ok(body.includes('type="importmap"'));assert.ok(!body.includes('__IMPORT_MAP__'));assert.ok(page.headers.get('content-security-policy').includes('sha256-'));
  const module=await fetch(base+'/vendor/three/build/three.module.js');assert.equal(module.status,200);assert.ok(module.headers.get('content-type').includes('javascript'));await module.arrayBuffer();
  const model=await fetch(base+'/assets/models/ready/elephant.glb');assert.equal(model.status,200);assert.equal(model.headers.get('content-type'),'model/gltf-binary');assert.equal(new TextDecoder().decode((await model.arrayBuffer()).slice(0,4)),'glTF');
- const credits=await fetch(base+'/credits.json').then(r=>r.json());assert.deepEqual(credits.map(x=>x.author),['GremorySaiyan','nickheitzman','ollimoisio','ToxaGrom','manojkmpr']);
+ const credits=await fetch(base+'/credits.json').then(r=>r.json());assert.deepEqual(credits.map(x=>x.author),['GremorySaiyan','nickheitzman','ollimoisio','ToxaGrom','manojkmpr','Xander Morningstar (@XMorningstar)','OuterspaceSoftware']);
  assert.equal((await fetch(base+'/assets/models/elephant/model/Elephant%20Idle.fbx')).status,404);
  assert.equal((await fetch(base+'/vendor/three/package.json')).status,404);
 });
@@ -41,7 +42,7 @@ test('named rooms support 5 seats plus 10 FIFO spectators, enforce permissions a
  const room='BBQ88';const players=[];
  for(let i=0;i<15;i++){const result=await post('join',{name:'P'+i,room,accessories:['cowboy','cowboy','unknown']});assert.equal(result.status,200);players.push(result.body)}
  assert.equal((await post('join',{name:'overflow',room})).status,409);
- let state=await snapshot(players[0].token);assert.equal(state.id,room);assert.equal(state.players.filter(p=>p.seat!==null).length,5);assert.equal(state.players.filter(p=>p.seat===null).length,10);assert.deepEqual(state.players[0].accessories,['cowboy']);assert.ok(!JSON.stringify(state).includes('token'));
+ let state=await snapshot(players[0].token);assert.equal(state.id,room);assert.equal(state.players.filter(p=>p.seat!==null).length,5);assert.equal(state.players.filter(p=>p.seat===null).length,10);assert.ok(!JSON.stringify(state).includes('token'));
  const watcher=players[5];for(const type of ['add','flip','fan','sauce','say','motion']){await pause();assert.equal((await post('action',{type},watcher.token)).status,403)}
  await pause();assert.equal((await post('action',{type:'chat',text:'先吃為敬'},watcher.token)).status,200);
  assert.equal((await post('action',{type:'add',food:'fish'},players[0].token)).status,200);
