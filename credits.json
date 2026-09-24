@@ -36,12 +36,12 @@
     "changes": "FBX 轉 GLB、拆分單件食物、套用原始貼圖，調整比例並加入熟度變色。"
   },
   {
-    "title": "Mirage melody",
-    "author": "Patrick Patrikios",
-    "url": "https://www.youtube.com/watch?v=c6mPaaGycjY",
-    "license": "YouTube Audio Library · 請依曲目頁面標示署名",
-    "licenseUrl": "https://support.google.com/youtube/answer/3376882?hl=zh-Hant",
-    "file": "YouTube Audio Library / Mirage melody",
-    "changes": "作為夜間烤肉場景的背景音樂，以 YouTube 影片嵌入播放；網站 Credits 保留作者與來源。"
+    "title": "Delivery Scooter",
+    "author": "manojkmpr",
+    "url": "https://sketchfab.com/3d-models/delivery-scooter-9ff4f6bed1484a6c9f274323930f5124",
+    "license": "CC BY 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+    "file": "assets/models/ready/scooter.glb",
+    "changes": "調整比例與朝向，加入飲料合併配送路徑動畫。"
   }
 ]
